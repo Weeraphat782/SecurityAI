@@ -9,16 +9,16 @@ const userIcon = new L.Icon({
   iconAnchor: [16, 32],
   popupAnchor: [0, -32],
 })
-const dangerIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/565/565547.png',
+const crowdIcon = new L.Icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/476/476863.png',
   iconSize: [32, 32],
   iconAnchor: [16, 32],
   popupAnchor: [0, -32],
 })
 
-export default function CrimeMap({ userLocation, hotspots }: {
+export default function CrowdedMap({ userLocation, crowdedAreas }: {
   userLocation: { lat: number, lng: number } | null,
-  hotspots: { name: string, crime_type: string, incident_count: number, lat: number, lng: number }[]
+  crowdedAreas: { name: string, crowd_level: string, people_count: number, lat: number, lng: number }[]
 }) {
   return (
     <MapContainer
@@ -36,12 +36,12 @@ export default function CrimeMap({ userLocation, hotspots }: {
           <Popup>คุณอยู่ที่นี่</Popup>
         </Marker>
       )}
-      {hotspots.map((hotspot, idx) => (
-        <Marker key={idx} position={[hotspot.lat, hotspot.lng]} icon={dangerIcon}>
+      {crowdedAreas.map((area, idx) => (
+        <Marker key={idx} position={[area.lat, area.lng]} icon={crowdIcon}>
           <Popup>
-            <b>{hotspot.name}</b><br />
-            ประเภทคดี: {hotspot.crime_type}<br />
-            จำนวนคดี: {hotspot.incident_count}
+            <b>{area.name}</b><br />
+            ระดับความแออัด: {area.crowd_level}<br />
+            จำนวนคน: {area.people_count} คน
           </Popup>
         </Marker>
       ))}
