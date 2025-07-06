@@ -28,95 +28,123 @@ export default function MobileScanner() {
       .trim()
   }
 
-  // จำลองการวิเคราะห์ภาพหน้าจอ
+  // วิเคราะห์ภาพหน้าจอด้วย AI จริง
   const analyzeScreenshot = async (imageData: string) => {
     setIsAnalyzing(true)
 
-    // OCR จริงด้วย tesseract.js
-    let detectedText = ''
     try {
-      const result = await Tesseract.recognize(imageData, 'tha+eng', { logger: (m: LoggerMessage) => console.log(m) })
-      detectedText = cleanOCRText(result.data.text)
-    } catch (err) {
-      detectedText = ''
-      console.error('OCR error:', err)
-    }
+      // OCR จริงด้วย tesseract.js (ปรับให้เร็วขึ้น)
+      let detectedText = ''
+      try {
+        const result = await Tesseract.recognize(imageData, 'tha+eng', { 
+          logger: (m: LoggerMessage) => console.log(m)
+        })
+        detectedText = cleanOCRText(result.data.text)
+        console.log('OCR Result:', detectedText)
+      } catch (err) {
+        detectedText = ''
+        console.error('OCR error:', err)
+      }
 
-    // ถ้าไม่มีข้อความหลังกรอง ไม่ต้องวิเคราะห์
-    if (!detectedText) {
-      setScanResult({
-        detectedText: 'ไม่พบข้อความที่เข้าข่ายให้วิเคราะห์',
-        riskLevel: 'low',
-        foundKeywords: [],
-        confidence: 0,
-        timestamp: new Date().toLocaleString('th-TH'),
-      })
-      setIsAnalyzing(false)
-      return
-    }
+      // ถ้าไม่มีข้อความหลังกรอง ไม่ต้องวิเคราะห์
+      if (!detectedText || detectedText.length < 5) {
+        setScanResult({
+          detectedText: 'ไม่พบข้อความที่เข้าข่ายให้วิเคราะห์',
+          riskLevel: 'low',
+          foundKeywords: [],
+          confidence: 0,
+          explanation: 'ไม่พบข้อความที่เพียงพอสำหรับการวิเคราะห์',
+          recommendations: ['ตรวจสอบว่าภาพมีข้อความหรือไม่'],
+          timestamp: new Date().toLocaleString('th-TH'),
+          source: 'ocr_no_text'
+        })
+        setIsAnalyzing(false)
+        return
+      }
 
-    // โหลดข้อมูล Supabase ถ้ายังไม่ได้โหลด
-    if (!aiSecurityService['scamCategories']?.length || !aiSecurityService['scamRecords']?.length) {
-      await aiSecurityService.loadData()
-    }
+      // โหลดข้อมูล Supabase ถ้ายังไม่ได้โหลด (ทำแบบ async)
+      const loadDataPromise = aiSecurityService.loadData()
+      
+      // วิเคราะห์ด้วย Supabase (aiSecurityService)
+      const dbAnalysis = await aiSecurityService.analyzeText(detectedText)
+      
+      // รอให้โหลดข้อมูลเสร็จ
+      await loadDataPromise
+      
+      // วิเคราะห์ด้วย Typhoon AI (ทำแบบ parallel)
+      let aiAnalysis
+      try {
+        aiAnalysis = await typhoonAIService.analyzeText(detectedText)
+      } catch (error) {
+        aiAnalysis = null
+        console.error('Typhoon AI error:', error)
+      }
 
-    // วิเคราะห์ด้วย Supabase (aiSecurityService)
-    const dbAnalysis = await aiSecurityService.analyzeText(detectedText)
-    // วิเคราะห์ด้วย Typhoon AI
-    let aiAnalysis
-    try {
-      aiAnalysis = await typhoonAIService.analyzeText(detectedText)
+      // ตัดสินใจแสดงผล ถ้าอย่างน้อยหนึ่งอันพบความเสี่ยง medium/high
+      const showDb = dbAnalysis.riskLevel !== 'low' && dbAnalysis.keywordsFound.length > 0
+      const showAi = aiAnalysis && aiAnalysis.riskLevel !== 'low' && aiAnalysis.keywords.length > 0
+
+      if (!showDb && !showAi) {
+        setScanResult({
+          detectedText: 'ไม่พบสัญญาณการหลอกลวง (ทั้ง DB และ AI)',
+          riskLevel: 'low',
+          foundKeywords: [],
+          confidence: 0,
+          explanation: 'ข้อความที่ตรวจพบไม่แสดงสัญญาณการหลอกลวง',
+          recommendations: ['สามารถใช้งานได้ตามปกติ', 'ตรวจสอบแหล่งที่มาของข้อมูล'],
+          timestamp: new Date().toLocaleString('th-TH'),
+          source: 'no_risk'
+        })
+        setIsAnalyzing(false)
+        return
+      }
+
+      // รวมผลลัพธ์ (แสดงทั้งสอง หรือเลือกอันที่เสี่ยงสูงกว่า)
+      const resultsToShow: any[] = []
+      if (showDb) {
+        resultsToShow.push({
+          detectedText,
+          riskLevel: dbAnalysis.riskLevel,
+          foundKeywords: dbAnalysis.keywordsFound,
+          confidence: dbAnalysis.confidence,
+          scamType: dbAnalysis.scamType,
+          recommendations: dbAnalysis.recommendations,
+          explanation: 'ฐานข้อมูล: ' + dbAnalysis.recommendations.join(' '),
+          timestamp: new Date().toLocaleString('th-TH'),
+          source: 'database',
+        })
+      }
+      if (showAi && aiAnalysis) {
+        resultsToShow.push({
+          detectedText,
+          riskLevel: aiAnalysis.riskLevel,
+          foundKeywords: aiAnalysis.keywords,
+          confidence: aiAnalysis.confidence,
+          scamType: aiAnalysis.scamType,
+          recommendations: aiAnalysis.recommendations,
+          explanation: 'AI: ' + aiAnalysis.explanation,
+          timestamp: new Date().toLocaleString('th-TH'),
+          source: 'ai',
+        })
+      }
+      
+      // แสดงผลลัพธ์แรกที่เสี่ยงสูงสุด
+      setScanResult(resultsToShow[0])
+      
     } catch (error) {
-      aiAnalysis = null
-      console.error('Typhoon AI error:', error)
-    }
-
-    // ตัดสินใจแสดงผล ถ้าอย่างน้อยหนึ่งอันพบความเสี่ยง medium/high
-    const showDb = dbAnalysis.riskLevel !== 'low' && dbAnalysis.keywordsFound.length > 0
-    const showAi = aiAnalysis && aiAnalysis.riskLevel !== 'low' && aiAnalysis.keywords.length > 0
-
-    if (!showDb && !showAi) {
-    setScanResult({
-        detectedText: 'ไม่พบสัญญาณการหลอกลวง (ทั้ง DB และ AI)',
+      console.error('Analysis error:', error)
+      setScanResult({
+        detectedText: 'เกิดข้อผิดพลาดในการวิเคราะห์',
         riskLevel: 'low',
         foundKeywords: [],
         confidence: 0,
+        explanation: 'ไม่สามารถวิเคราะห์ภาพได้ กรุณาลองใหม่อีกครั้ง',
+        recommendations: ['ลองอัพโหลดภาพใหม่อีกครั้ง', 'ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต'],
         timestamp: new Date().toLocaleString('th-TH'),
-      })
-      setIsAnalyzing(false)
-      return
-    }
-
-    // รวมผลลัพธ์ (แสดงทั้งสอง หรือเลือกอันที่เสี่ยงสูงกว่า)
-    const resultsToShow: any[] = []
-    if (showDb) {
-      resultsToShow.push({
-        detectedText,
-        riskLevel: dbAnalysis.riskLevel,
-        foundKeywords: dbAnalysis.keywordsFound,
-        confidence: dbAnalysis.confidence,
-        scamType: dbAnalysis.scamType,
-        recommendations: dbAnalysis.recommendations,
-        explanation: 'ฐานข้อมูล: ' + dbAnalysis.recommendations.join(' '),
-        timestamp: new Date().toLocaleString('th-TH'),
-        source: 'database',
+        source: 'error'
       })
     }
-    if (showAi && aiAnalysis) {
-      resultsToShow.push({
-      detectedText,
-        riskLevel: aiAnalysis.riskLevel,
-        foundKeywords: aiAnalysis.keywords,
-        confidence: aiAnalysis.confidence,
-        scamType: aiAnalysis.scamType,
-        recommendations: aiAnalysis.recommendations,
-        explanation: 'AI: ' + aiAnalysis.explanation,
-        timestamp: new Date().toLocaleString('th-TH'),
-        source: 'ai',
-    })
-    }
-    // แสดงผลลัพธ์แรกที่เสี่ยงสูงสุด (หรือทั้งหมดถ้าต้องการ)
-    setScanResult(resultsToShow[0])
+    
     setIsAnalyzing(false)
   }
 
@@ -139,11 +167,6 @@ export default function MobileScanner() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Smartphone className="h-8 w-8 text-green-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Mobile Screenshot Scanner</h1>
-          </div>
-          <p className="text-gray-600">อัพโหลดภาพหน้าจอมือถือเพื่อตรวจสอบการหลอกลวง</p>
         </div>
 
         {/* Upload Section */}
