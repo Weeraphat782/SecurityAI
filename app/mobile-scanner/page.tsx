@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Smartphone, Camera, Upload, AlertTriangle, Shield, ImageIcon } from "lucide-react"
+import { Smartphone, Camera, Upload, AlertTriangle, ImageIcon } from "lucide-react"
 import { typhoonAIService } from '@/lib/typhoon-ai-service'
 import { aiSecurityService } from '@/lib/ai-security-service'
 // @ts-ignore: ไม่มี type declaration ของ tesseract.js ใน node_modules
@@ -221,7 +221,7 @@ export default function MobileScanner() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
+                  <AlertTriangle className="h-5 w-5" />
                   ผลการวิเคราะห์
                 </CardTitle>
               </CardHeader>
@@ -326,7 +326,7 @@ export default function MobileScanner() {
 
         {/* Privacy Notice */}
         <Alert>
-          <Shield className="h-4 w-4" />
+          <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>ความเป็นส่วนตัว:</strong> ภาพที่อัพโหลดจะถูกประมวลผลในเครื่องเท่านั้น ไม่มีการส่งข้อมูลไปยังเซิร์ฟเวอร์ภายนอก
           </AlertDescription>

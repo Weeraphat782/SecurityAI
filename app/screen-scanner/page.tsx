@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Monitor, AlertTriangle, Shield, Eye, Square, Play, Pause, RefreshCw, Share, Image, FileText } from "lucide-react"
+import { Monitor, AlertTriangle, Eye, Square, Play, Pause, RefreshCw, Share, Image, FileText } from "lucide-react"
 // @ts-ignore: ไม่มี type declaration ของ tesseract.js ใน node_modules
 import Tesseract, { LoggerMessage } from 'tesseract.js'
 import { typhoonAIService } from '@/lib/typhoon-ai-service'
@@ -549,7 +549,7 @@ export default function ScreenScanner() {
 
               {stream && (
                 <Alert className="border-green-200 bg-green-50">
-                  <Shield className="h-4 w-4 text-green-600" />
+                  <AlertTriangle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
                     ✅ <strong>เชื่อมต่อสำเร็จ!</strong> ระบบสามารถเห็นหน้าจอของคุณแล้ว
                   </AlertDescription>
